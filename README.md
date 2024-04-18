@@ -1,7 +1,7 @@
 pdfontconv
 ==========
 
-This is a browser-based tool to convert TTF, OTF, WOFF and WOFF2 fonts into `.fnt` files for use with the [PlayDate](https://play.date) SDK.
+This is a browser-based tool to convert TTF, OTF, WOFF and WOFF2 fonts into `.fnt` files for use with the [Playdate](https://play.date) SDK.
 
 ![Output grid of font glyphs](font_glyphs.png)
 ![Example text](sample_text.png)
@@ -29,7 +29,7 @@ Missing features
 Inherent limitations
 --------------------
 
-The PlayDate's [font format](https://github.com/cranksters/playdate-reverse-engineering/blob/main/formats/fnt.md) is very simple, so a lot of features will never be supported, such as:
+The Playdate's [font format](https://github.com/cranksters/playdate-reverse-engineering/blob/main/formats/fnt.md) is very simple, so a lot of features will never be supported, such as:
 
 - Right-to-left and other text directions.
 - Ligatures and other contextual replacements.

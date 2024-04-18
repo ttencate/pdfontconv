@@ -395,7 +395,7 @@ function downloadFile(fileName, mimeType, data) {
 }
 
 // Renders the sample text both to the browser element and to the canvas
-// The latter mimics the PlayDate's very simple layout algorithm.
+// The latter mimics the Playdate's very simple layout algorithm.
 function renderSampleText() {
     const sampleText = sampleTextInput.value;
     const sampleTextChars = Array.from(sampleText);
