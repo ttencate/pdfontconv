@@ -39,3 +39,11 @@ Development
 -----------
 
 It's just vanilla HTML, JavaScript and CSS, no build tools required. You can just open `index.html` in your browser and start hacking.
+
+Alternatives
+------------
+
+- [tophat](https://kaasiand.cool/tophat/) by Daniel Dickison is great, but it will clip glyphs that draw anything left of the insertion point, and also doesn't seem to import kerning data. If you want to manually edit the output of pdfontconv, tophat is highly recommended.
+- [PDFontTool](https://github.com/abenokobo/PDFontTool) runs on Windows only. I have not been able to evaluate it.
+- [Playdate Caps](https://play.date/caps/) is the official font editing tool, but it [no longer](https://devforum.play.date/t/caps-font-import-feature-missing/3405) supports import.
+- [This forum thread](https://devforum.play.date/t/alternative-bitmap-font-tools/399) has some links to other tools and methods you might try.
