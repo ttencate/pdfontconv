@@ -77,15 +77,6 @@ canvas {
     flex-grow: 1;
 }
 
-.checkerboard-background {
-    --color-1: #eee;
-    --color-2: #ddd;
-    --cell-size-x: 8px;
-    --cell-size-y: 8px;
-    background-image: conic-gradient(var(--color-1) 25%, var(--color-2) 25%, var(--color-2) 50%, var(--color-1) 50%, var(--color-1) 75%, var(--color-2) 75%);
-    background-size: calc(var(--cell-size-x) * 2) calc(var(--cell-size-y) * 2);
-}
-
 .grey-background {
     background-color: #eee;
 }
@@ -100,4 +91,12 @@ canvas {
 
 .no-wrap {
     text-wrap: nowrap;
+}
+
+.position-absolute {
+    position: absolute;
+}
+
+.position-relative {
+    position: relative;
 }

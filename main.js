@@ -4,6 +4,7 @@ const fontSizeInput = document.getElementById('fontSizeInput');
 const charSetTextarea = document.getElementById('charSetTextarea');
 const opacityThresholdInput = document.getElementById('opacityThresholdInput');
 const displayScaleInput = document.getElementById('displayScaleInput');
+const debugCanvas = document.getElementById('debugCanvas');
 const fontCanvas = document.getElementById('fontCanvas');
 const sampleTextInput = document.getElementById('sampleTextInput');
 const sampleTextElement = document.getElementById('sampleTextElement');
@@ -156,13 +157,35 @@ function convertFont() {
     context.font = getCssFont();
 
     const charSet = input.charSet;
-    const measures = charSet.map((char) => context.measureText(char));
-    const maxAdvance = Math.ceil(Math.max(...measures.map(m => m.width)));
-    const maxLeft = Math.ceil(Math.max(...measures.map(m => m.actualBoundingBoxLeft)));
-    const maxRight = Math.ceil(Math.max(...measures.map(m => m.actualBoundingBoxRight)));
-    const maxAscent = Math.ceil(Math.max(...measures.map(m => m.actualBoundingBoxAscent)));
-    const maxDescent = Math.ceil(Math.max(...measures.map(m => m.actualBoundingBoxDescent)));
-    const tracking = -maxLeft;
+    const measures = charSet.map((char) => {
+        const measures = context.measureText(char);
+        return {
+            advance: Math.round(measures.width),
+            left: Math.ceil(measures.actualBoundingBoxLeft),
+            right: Math.ceil(measures.actualBoundingBoxRight),
+            ascent: Math.ceil(measures.actualBoundingBoxAscent),
+            descent: Math.ceil(measures.actualBoundingBoxDescent),
+        };
+    });
+    const maxAdvance = Math.max(...measures.map(m => m.advance));
+    const maxLeft = Math.max(...measures.map(m => m.left));
+    const maxRight = Math.max(...measures.map(m => m.right));
+    const maxAscent = Math.max(...measures.map(m => m.ascent));
+    const maxDescent = Math.max(...measures.map(m => m.descent));
+    // Sometimes, characters stick out to the left of the reference point.
+    // For example, J and ] might do this, especially in cursive fonts.
+    // We allow for this by offsetting all characters to the right, and
+    // setting a negative tracking so that character spacing isn't affected.
+    const offsetX = Math.max(maxLeft, 0);
+    const offsetY = maxAscent;
+    let tracking = -offsetX;
+    // Sometimes, characters stick out to the right of their x-advance ("width").
+    // For example, T and [ might do this, especially in cursive fonts.
+    // We allow for this by making all characters character even wider,
+    // and making tracking even more negative to compensate.
+    const overflow = Math.max(0, ...measures.map(m => offsetX + m.right - m.advance + tracking));
+    tracking -= overflow;
+    const widths = measures.map(m => m.advance - tracking);
     console.log([
         'Font metrics:',
         `    Max advance: ${maxAdvance}`,
@@ -185,13 +208,37 @@ function convertFont() {
     fontCanvas.width = canvasWidth;
     fontCanvas.height = canvasHeight;
     context = fontCanvas.getContext('2d');
+    context.clearRect(0, 0, canvasWidth, canvasHeight);
     context.font = getCssFont();
+
+    // Also resize the debug canvas.
+    debugCanvas.width = canvasWidth;
+    debugCanvas.height = canvasHeight;
+    debugContext = debugCanvas.getContext('2d');
+    debugContext.clearRect(0, 0, canvasWidth, canvasHeight);
 
     // Draw all characters.
     for (let i = 0; i < numChars; i++) {
-        const cellX = (i % numCellsX) * cellSizeX;
-        const cellY = Math.floor(i / numCellsX) * cellSizeY;
-        context.fillText(charSet[i], cellX + maxLeft, cellY + maxAscent);
+        const col = i % numCellsX;
+        const row = Math.floor(i / numCellsX);
+        const cellX = col * cellSizeX;
+        const cellY = row * cellSizeY;
+        const measure = measures[i];
+        context.fillText(charSet[i], cellX + offsetX, cellY + offsetY);
+        debugContext.fillStyle = (row + col) % 2 == 0 ? '#ddd' : '#eee';
+        debugContext.fillRect(cellX, cellY, cellSizeX, cellSizeY);
+        debugContext.fillStyle = `rgba(0, 0, 255, 0.1)`;
+        debugContext.fillRect(
+            cellX, cellY,
+            widths[i], cellSizeY,
+        );
+        debugContext.fillStyle = `rgba(255, 0, 0, 0.1)`;
+        debugContext.fillRect(
+            cellX + offsetX - measure.left,
+            cellY + offsetY - measure.ascent,
+            measure.left + measure.right,
+            measure.ascent + measure.descent,
+        );
     }
 
     // Convert partial alpha to either opaque or transparent.
@@ -206,18 +253,16 @@ function convertFont() {
     }
     context.putImageData(imageData, 0, 0);
 
-    // Make checkerboard match cells.
-    fontCanvas.style.setProperty('--cell-size-x', `${100 / numCellsX}%`);
-    fontCanvas.style.setProperty('--cell-size-y', `${100 / numCellsY}%`);
-
     // Set canvas display size.
     const displayScale = getDisplayScale();
     fontCanvas.style.setProperty('width', `${Math.floor(canvasWidth * displayScale)}px`);
     fontCanvas.style.setProperty('height', `${Math.floor(canvasHeight * displayScale)}px`);
+    debugCanvas.style.setProperty('width', `${Math.floor(canvasWidth * displayScale)}px`);
+    debugCanvas.style.setProperty('height', `${Math.floor(canvasHeight * displayScale)}px`);
 
     // Update fontData.
     fontData.charSet = charSet;
-    fontData.widths = measures.map(m => Math.round(m.width - tracking));
+    fontData.widths = widths;
     fontData.tracking = tracking;
     fontData.cellSizeX = cellSizeX;
     fontData.cellSizeY = cellSizeY;
