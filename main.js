@@ -16,7 +16,7 @@ const input = {
     baseName: '',
     fontSize: 24,
     opacityThreshold: 128,
-    charSet: ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~'.split(''),
+    charSet: Array.from(' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~'),
 }
 
 const fontData = {
@@ -26,6 +26,7 @@ const fontData = {
     tracking: 0,
     cellSizeX: 0,
     cellSizeY: 0,
+    kerning: {},
 };
 
 // The arbitrary `font-family` value we use for the loaded font.
@@ -42,7 +43,7 @@ function updateInputFromFields() {
     input.fontSize = fontSizeInput.value;
     input.opacityThreshold = opacityThresholdInput.value;
 
-    const chars = charSetTextarea.value.split('');
+    const chars = Array.from(charSetTextarea.value);
     chars.sort();
     for (let i = 1; i < chars.length;) {
         if (chars[i] == chars[i - 1] ||
@@ -113,6 +114,16 @@ function updateFieldsFromInput() {
     charSetTextarea.value = input.charSet.join('');
 }
 
+// Updates `input.fontDataBytes`.
+async function updateFontDataBytesFromInput() {
+    const blob = fontFileInput.files[0];
+    if (!blob) {
+        return;
+    }
+    const arrayBuffer = await blob.arrayBuffer();
+    input.fontDataBytes = new Uint8Array(arrayBuffer);
+}
+
 // Returns the CSS `font` property to use for rendering.
 function getCssFont() {
     return `${input.fontSize}px ${getFontFamily()}`;
@@ -152,26 +163,19 @@ function stripExtension(fileName) {
     }
 }
 
-// Loads the font file and sets up a CSS rule for it.
-async function loadFont() {
-    const blob = fontFileInput.files[0];
-    if (!blob) {
-        return;
-    }
-    const arrayBuffer = await blob.arrayBuffer();
-
-    await createFontFace(arrayBuffer);
-    input.fontDataBytes = new Uint8Array(arrayBuffer);
-}
-
 // Resets the base name input to the name of the current font file.
-function extractFontBaseName() {
-    input.baseName = stripExtension(extractFilename(fontFileInput.value));
+function updateFontBaseNameFromInput() {
+    const baseName = stripExtension(extractFilename(fontFileInput.value));
+    input.baseName = baseName;
     baseNameInput.value = baseName;
 }
 
 // Loads the `FontFace` from the array buffer and tells the browser about it.
-async function createFontFace(arrayBuffer) {
+async function createFontFace() {
+    if (!input.fontDataBytes) {
+        return;
+    }
+    const arrayBuffer = input.fontDataBytes.buffer;
     const descriptors = {
         // style: 'italic',
         // weight: '400',
@@ -185,6 +189,7 @@ async function createFontFace(arrayBuffer) {
 
     document.fonts.clear(); // Only clears fonts that were added through JavaScript.
     document.fonts.add(fontFace);
+    console.log('Added font face:', fontFace);
 }
 
 // Queries character set for the index of the given character.
@@ -200,7 +205,7 @@ function getCharIndex(char) {
 
 // Renders the font image to the canvas and writes font data to the `fontData` global.
 function convertFont() {
-    let context = fontCanvas.getContext('2d');
+    let context = fontCanvas.getContext('2d', { willReadFrequently: true });
     context.font = getCssFont();
 
     const charSet = input.charSet;
@@ -254,7 +259,7 @@ function convertFont() {
     // Changing the canvas size resets the context.
     fontCanvas.width = canvasWidth;
     fontCanvas.height = canvasHeight;
-    context = fontCanvas.getContext('2d');
+    context = fontCanvas.getContext('2d', { willReadFrequently: true });
     context.clearRect(0, 0, canvasWidth, canvasHeight);
     context.font = getCssFont();
 
@@ -315,6 +320,9 @@ function convertFont() {
     debugCanvas.style.setProperty('width', `${Math.floor(canvasWidth * displayScale)}px`);
     debugCanvas.style.setProperty('height', `${Math.floor(canvasHeight * displayScale)}px`);
 
+    // Infer kerning table.
+    fontData.kerning = computeKerning(context, charSet);
+
     // Update fontData.
     fontData.charSet = charSet;
     fontData.widths = widths;
@@ -322,6 +330,28 @@ function convertFont() {
     fontData.tracking = tracking;
     fontData.cellSizeX = cellSizeX;
     fontData.cellSizeY = cellSizeY;
+}
+
+// Computes the kerning table and returns it as an object,
+// which maps two-character strings to an integer.
+function computeKerning(context, charSet) {
+    // The browser doesn't offer a way to access kerning data directly.
+    // But we can brute-force it! This is obviously an O(n²) algorithm,
+    // so let's hope it's fast enough. If not, we'll need to parse the font file...
+    const kerning = {};
+    for (const left of charSet) {
+        const leftWidth = context.measureText(left).width;
+        for (const right of charSet) {
+            const pair = left + right;
+            const rightWidth = context.measureText(right).width;
+            const pairWidth = context.measureText(pair).width;
+            const kern = Math.round(pairWidth - leftWidth - rightWidth);
+            if (kern != 0) {
+                kerning[pair] = kern;
+            }
+        }
+    }
+    return kerning;
 }
 
 // Returns the font's PNG data as an Uint8Array.
@@ -344,6 +374,10 @@ function generateFnt() {
         const width = fontData.widths[i];
         lines.push(`${char} ${width}`);
     }
+    for (const pair in fontData.kerning) {
+        const kern = fontData.kerning[pair];
+        lines.push(`${pair} ${kern}`);
+    }
     return new TextEncoder().encode(lines.join('\n'));
 }
 
@@ -364,6 +398,7 @@ function downloadFile(fileName, mimeType, data) {
 // The latter mimics the PlayDate's very simple layout algorithm.
 function renderSampleText() {
     const sampleText = sampleTextInput.value;
+    const sampleTextChars = Array.from(sampleText);
     const displayScale = getDisplayScale();
 
     // Set browser-rendered version.
@@ -374,7 +409,7 @@ function renderSampleText() {
 
     // Set canvas size.
     let canvasWidth = -fontData.tracking;
-    for (const char of sampleText.split('')) {
+    for (const char of sampleTextChars) {
         const charIndex = getCharIndex(char);
         if (charIndex < 0) {
             continue;
@@ -396,7 +431,8 @@ function renderSampleText() {
     const numCellsX = fontCanvas.width / cellSizeX;
     let x = 0;
     const y = 0;
-    for (const char of sampleText.split('')) {
+    let prevChar = '';
+    for (const char of sampleTextChars) {
         const charIndex = getCharIndex(char);
         if (charIndex < 0) {
             continue;
@@ -405,11 +441,13 @@ function renderSampleText() {
         const cellY = Math.floor(charIndex / numCellsX) * cellSizeY;
         const charWidth = fontData.widths[charIndex];
         const charHeight = fontData.cellSizeY;
+        x += prevChar ? fontData.kerning[prevChar + char] || 0 : 0;
         sampleContext.drawImage(
             fontCanvas,
             cellX, cellY, charWidth, charHeight,
             x, y, charWidth, charHeight);
         x += charWidth + fontData.tracking;
+        prevChar = char;
     }
 
     // Set display scale.
@@ -426,17 +464,18 @@ function downloadPng() {
 }
 
 async function init() {
-    if (!loadInput()) {
-        saveInput();
+    if (loadInput()) {
+        await createFontFace();
     } else {
-        await loadFont();
+        saveInput();
     }
     updateFieldsFromInput();
     updateOutput();
 
     fontFileInput.addEventListener('change', async function() {
-        await loadFont();
-        extractFontBaseName();
+        updateFontDataBytesFromInput();
+        updateFontBaseNameFromInput();
+        await createFontFace();
         convertFont();
         renderSampleText();
         saveInput();

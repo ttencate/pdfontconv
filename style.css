@@ -10,16 +10,8 @@ html, body {
 }
 
 header {
-    padding: 16px 0;
     background-color: #eee;
     align-items: baseline;
-}
-
-footer {
-    text-align: center;
-    margin: 16px 0 0;
-    padding: 16px 0;
-    background-color: #eee;
 }
 
 label {
@@ -29,7 +21,7 @@ label {
 
 h1 {
     font-size: 200%;
-    margin: 0 0 16px;
+    margin: 0;
 }
 
 h2 {
@@ -103,4 +95,8 @@ canvas {
 
 .small {
     font-size: 75%;
+}
+
+.max-height-50 {
+    max-height: 50vh;
 }

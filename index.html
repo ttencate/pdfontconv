@@ -14,6 +14,9 @@
             <div class="column column-grow">
                 <p>Converts TTF, OTF and WOFF2 fonts into <code>.fnt</code> files for use on the <a href="https://play.date">PlayDate</a></p>
             </div>
+            <div class="column column-25 small">
+                Made by <a href="https://frozenfractal.com/">Frozen Fractal</a>. Source code and documentation on <a href="https://github.com/ttencate/pdfontconv">GitHub</a>.
+            </div>
         </header>
         <main class="columns">
             <div class="column column-25">
@@ -45,13 +48,12 @@
                     Show at scale:
                     <input id="displayScaleInput" type="number" min="1" max="4" value="1">
                 </label>
-                <div class="scroll-x scroll-y">
+                <div class="scroll-x scroll-y position-relative max-height-50">
                     <canvas id="debugCanvas" class="position-absolute"></canvas>
                     <canvas id="fontCanvas" class="position-relative"></canvas>
                 </div>
                 <p class="small">Background is informational only; actual output is transparent. Red: glyph bounding box from input font. Blue: negative tracking (overlap with previous character). Blue + green: extent of character drawn.</p>
-            </div>
-            <div class="column column-25">
+
                 <h2>Sample text</h2>
                 <label>
                     <input id="sampleTextInput" type="text", value="The quick brown fox jumps over the lazy dog." class="full-width">
@@ -65,8 +67,10 @@
                         Rendering on PlayDate:<br>
                         <canvas id="sampleTextCanvas" class="grey-background"></canvas>
                     </p>
-                    <p class="small">Due to the way we overlap characters using negative tracking, there may be some blank space at the beginning and/or end of the text rendered on the PlayDate.</p>
+                    <p class="small">Due to the way characters are overlapped using negative tracking, there may be some blank space at the beginning and/or end of the text rendered on the PlayDate.</p>
                 </div>
+            </div>
+            <div class="column column-25">
                 <h2>Save</h2>
                 <p>
                     <button id="downloadFntButton">Download <code>.fnt</code></button>
@@ -74,9 +78,6 @@
                 </p>
             </div>
         </main>
-        <footer>
-            Made by <a href="https://frozenfractal.com/">Frozen Fractal</a>. Source code on <a href="https://github.com/ttencate/pdfontconv">GitHub</a>.
-        </footer>
         <script src="main.js"></script>
     </body>
 </html>
