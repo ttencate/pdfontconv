@@ -3,7 +3,8 @@ pdfontconv
 
 This is a browser-based tool to convert TTF, OTF, WOFF and WOFF2 fonts into `.fnt` files for use with the [PlayDate](https://play.date) SDK.
 
-![Screenshot of pdfontconv output](screenshot.png)
+![Output grid of font glyphs](font_glyphs.png)
+![Example text](sample_text.png)
 
 Requirements
 ------------
