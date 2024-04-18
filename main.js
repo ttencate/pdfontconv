@@ -1,4 +1,5 @@
-const fontFamilyInput = document.getElementById('fontFamilyInput');
+const fontStyle = document.getElementById('fontStyle');
+const fontFileInput = document.getElementById('fontFileInput');
 const fontSizeInput = document.getElementById('fontSizeInput');
 const charSetTextarea = document.getElementById('charSetTextarea');
 const opacityThresholdInput = document.getElementById('opacityThresholdInput');
@@ -8,9 +9,14 @@ const sampleTextInput = document.getElementById('sampleTextInput');
 const sampleTextElement = document.getElementById('sampleTextElement');
 const sampleTextCanvas = document.getElementById('sampleTextCanvas');
 
-charSetTextarea.value = ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~';
+const input = {
+    fontFile: null,
+    fontSize: 24,
+    opacityThreshold: 128,
+    charSet: ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~'.split(''),
+}
 
-fontData = {
+const fontData = {
     charSet: [],
     widths: [],
     tracking: 0,
@@ -18,23 +24,19 @@ fontData = {
     cellSizeY: 0,
 };
 
-// Returns the CSS font-family.
+// The arbitrary `font-family` value we use for the loaded font.
+const FONT_FAMILY = 'pdfontconv';
+
+// Returns the `font-family` for rendering, or a fallback.
 function getFontFamily() {
-    return fontFamilyInput.value;
+    return input.fontFile ? FONT_FAMILY : 'serif';
 }
 
-// Returns the selected font size in pixels.
-function getFontSize() {
-    return fontSizeInput.value;
-}
+// Updates the `input` global from input elements.
+function updateInputFromFields() {
+    input.fontSize = fontSizeInput.value;
+    input.opacityThreshold = opacityThresholdInput.value;
 
-// Returns the CSS `font` property to use for rendering.
-function getCssFont() {
-    return `${getFontSize()}px ${getFontFamily()}`;
-}
-
-// Returns a sorted array of unique characters, excluding unprintable characters.
-function getCharSet() {
     const chars = charSetTextarea.value.split('');
     chars.sort();
     for (let i = 1; i < chars.length;) {
@@ -46,7 +48,65 @@ function getCharSet() {
             i++;
         }
     }
-    return chars;
+    input.charSet = chars;
+
+    saveInput();
+}
+
+// Encodes an ArrayBuffer as a base64 string.
+function encodeBase64(arrayBuffer) {
+    const bytesAsString = new Uint8Array(arrayBuffer).map(byte => String.fromCharCode(byte)).join('');
+    return btoa(bytesAsString);
+}
+
+// Decodes a base64 string into an ArrayBuffer.
+function decodeBase64(string) {
+    const bytesAsString = atob(string);
+    const length = bytesAsString.length;
+    const buffer = new ArrayBuffer(length);
+    const array = new Uint8Array(buffer);
+    for (let i = 0; i < length; i++) {
+        array[i] = bytesAsString.charCodeAt(i);
+    }
+    return buffer;
+}
+
+// Saves the `input` global into local storage.
+function saveInput() {
+    localStorage.setItem('pdfontconvInput', JSON.stringify({
+        ...input,
+        fontFile: input.fontFile ? encodeBase64(input.fontFile) : null,
+    }));
+}
+
+// Loads the `input` global from local storage. Returns `true` if succesful.
+function loadInput() {
+    let loaded;
+    try {
+        loaded = JSON.parse(localStorage.getItem('pdfontconvInput'));
+        if (loaded.fontFile) {
+            loaded.fontFile = decodeBase64(loaded.fontFile);
+        }
+    } catch (ex) {
+        return false;
+    }
+
+    console.log('Loaded input:', loaded);
+    Object.assign(input, loaded);
+
+    return true;
+}
+
+// Updates input fields from the `input` global.
+function updateFieldsFromInput() {
+    fontSizeInput.value = input.fontSize;
+    opacityThresholdInput.value = input.opacityThreshold;
+    charSetTextarea.value = input.charSet.join('');
+}
+
+// Returns the CSS `font` property to use for rendering.
+function getCssFont() {
+    return `${input.fontSize}px ${getFontFamily()}`;
 }
 
 // Returns the alpha threshold from which pixels are rendered as opaque.
@@ -59,18 +119,50 @@ function getDisplayScale() {
     return displayScaleInput.value / window.devicePixelRatio;
 }
 
+// Loads the font file and sets up a CSS rule for it.
+async function loadFont() {
+    const blob = fontFileInput.files[0];
+    if (!blob) {
+        return;
+    }
+    input.fontFile = await blob.arrayBuffer();
+    await createFontFace();
+}
+
+// Loads the `FontFace` from the `input` global and tells the browser about it.
+async function createFontFace() {
+    if (!input.fontFile) {
+        return;
+    }
+
+    const descriptors = {
+        // style: 'italic',
+        // weight: '400',
+    };
+    const fontFace = new FontFace(FONT_FAMILY, input.fontFile, descriptors);
+    try {
+        await fontFace.load();
+    } catch (ex) {
+        alert(`Failed to load font. Is it a valid TTF, OTF, WOFF or WOFF2 file?\n\n${ex}`);
+    }
+
+    document.fonts.clear(); // Only clears fonts that were added through JavaScript.
+    document.fonts.add(fontFace);
+}
+
 // Renders the font image to the canvas and writes font data to the `fontData` global.
-function updateFont() {
+function convertFont() {
     let context = fontCanvas.getContext('2d');
     context.font = getCssFont();
 
-    const charSet = getCharSet();
+    const charSet = input.charSet;
     const measures = charSet.map((char) => context.measureText(char));
     const maxAdvance = Math.ceil(Math.max(...measures.map(m => m.width)));
     const maxLeft = Math.ceil(Math.max(...measures.map(m => m.actualBoundingBoxLeft)));
     const maxRight = Math.ceil(Math.max(...measures.map(m => m.actualBoundingBoxRight)));
     const maxAscent = Math.ceil(Math.max(...measures.map(m => m.actualBoundingBoxAscent)));
     const maxDescent = Math.ceil(Math.max(...measures.map(m => m.actualBoundingBoxDescent)));
+    const tracking = -maxLeft;
     console.log([
         'Font metrics:',
         `    Max advance: ${maxAdvance}`,
@@ -78,12 +170,13 @@ function updateFont() {
         `    Max right: ${maxRight}`,
         `    Max ascent: ${maxAscent}`,
         `    Max descent: ${maxDescent}`,
+        `    Tracking: ${tracking}`,
     ].join('\n'));
 
     const numChars = charSet.length;
     const numCellsX = Math.ceil(Math.sqrt(numChars));
     const numCellsY = Math.ceil(numChars / numCellsX);
-    const cellSizeX = maxAdvance + maxLeft;
+    const cellSizeX = Math.max(maxAdvance + maxLeft, maxLeft + maxRight);
     const cellSizeY = maxAscent + maxDescent;
     const canvasWidth = numCellsX * cellSizeX;
     const canvasHeight = numCellsY * cellSizeY;
@@ -98,13 +191,13 @@ function updateFont() {
     for (let i = 0; i < numChars; i++) {
         const cellX = (i % numCellsX) * cellSizeX;
         const cellY = Math.floor(i / numCellsX) * cellSizeY;
-        context.fillText(charSet[i], cellX, cellY + maxAscent);
+        context.fillText(charSet[i], cellX + maxLeft, cellY + maxAscent);
     }
 
     // Convert partial alpha to either opaque or transparent.
     const imageData = context.getImageData(0, 0, canvasWidth, canvasHeight);
     const data = imageData.data;
-    const opacityThreshold = getOpacityThreshold();
+    const opacityThreshold = input.opacityThreshold;
     for (let i = 0; i < data.length; i += 4) {
         data[i + 0] = 0;
         data[i + 1] = 0;
@@ -124,8 +217,8 @@ function updateFont() {
 
     // Update fontData.
     fontData.charSet = charSet;
-    fontData.widths = measures.map(m => Math.round(m.width));
-    fontData.tracking = 0;
+    fontData.widths = measures.map(m => Math.round(m.width - tracking));
+    fontData.tracking = tracking;
     fontData.cellSizeX = cellSizeX;
     fontData.cellSizeY = cellSizeY;
 }
@@ -146,7 +239,7 @@ function renderSampleText() {
     // Set browser-rendered version.
     sampleTextElement.innerText = sampleText;
     sampleTextElement.style.fontFamily = getFontFamily();
-    sampleTextElement.style.fontSize = `${getFontSize() * displayScale}px`;
+    sampleTextElement.style.fontSize = `${input.fontSize * displayScale}px`;
 
     // Set canvas size.
     let canvasWidth = -fontData.tracking;
@@ -170,7 +263,7 @@ function renderSampleText() {
     const cellSizeX = fontData.cellSizeX;
     const cellSizeY = fontData.cellSizeY;
     const numCellsX = fontCanvas.width / cellSizeX;
-    let x = -fontData.tracking;
+    let x = 0;
     const y = 0;
     for (const char of sampleText.split('')) {
         const charIndex = getCharIndex(char);
@@ -193,21 +286,44 @@ function renderSampleText() {
     sampleTextCanvas.style.height = `${Math.floor(canvasHeight * displayScale)}px`;
 }
 
-function update() {
-    updateFont();
+async function init() {
+    if (!loadInput()) {
+        saveInput();
+    } else {
+        await loadFont();
+    }
+    updateFieldsFromInput();
+    updateOutput();
+}
+
+function updateOutput() {
+    convertFont();
     renderSampleText();
 }
 
-update();
+fontFileInput.addEventListener('change', async function() {
+    await loadFont();
+    convertFont();
+    renderSampleText();
+    saveInput();
+});
 
 for (const element of [
-    fontFamilyInput,
     fontSizeInput,
     charSetTextarea,
     displayScaleInput,
     opacityThresholdInput,
 ]) {
-    element.addEventListener('change', function() { update(); });
+    element.addEventListener('change', function() {
+        updateInputFromFields();
+        convertFont();
+        renderSampleText();
+        saveInput();
+    });
 }
 
-sampleTextInput.addEventListener('change', function() { renderSampleText(); });
+sampleTextInput.addEventListener('change', function() {
+    renderSampleText();
+});
+
+init();

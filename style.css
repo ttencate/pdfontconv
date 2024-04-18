@@ -1,13 +1,25 @@
-html {
+* {
+    box-sizing: border-box;
+}
+
+html, body {
     font-family: sans-serif;
+    margin: 0;
+    padding: 0;
+    width: 100%;
 }
 
 header {
-    text-align: center;
+    padding: 16px 0;
+    background-color: #eee;
+    align-items: baseline;
 }
 
 footer {
     text-align: center;
+    margin: 16px 0 0;
+    padding: 16px 0;
+    background-color: #eee;
 }
 
 label {
@@ -39,14 +51,30 @@ canvas {
 }
 
 .columns {
+    --margin: 32px;
+    position: relative;
+    width: 100%;
     display: flex;
     flex-direction: row;
+    gap: var(--margin);
+    padding-left: var(--margin);
+    padding-right: var(--margin);
 }
 
 .column {
-    --margin: 32px;
-    margin-left: var(--margin);
-    margin-right: var(--margin);
+}
+
+.column-25 {
+    width: 25%;
+    flex-basis: 25%;
+    flex-grow: 0;
+    flex-shrink: 0;
+}
+
+.column-grow {
+    min-width: 0;
+    flex-shrink: 1;
+    flex-grow: 1;
 }
 
 .checkerboard-background {
@@ -60,4 +88,16 @@ canvas {
 
 .grey-background {
     background-color: #eee;
+}
+
+.scroll-x {
+    overflow-x: auto;
+}
+
+.scroll-y {
+    overflow-y: auto;
+}
+
+.no-wrap {
+    text-wrap: nowrap;
 }

@@ -4,63 +4,68 @@
         <title>pdfontconv: PlayDate font conversion tool</title>
         <link rel="stylesheet" href="style.css">
         <meta name="viewport" content="initial-scale=1" />
+        <style id="fontStyle"></style>
     </head>
     <body>
-        <header>
-            <h1>pdfontconv</h1>
-            <p>Converts TTF, OTF and WOFF2 fonts into <code>.fnt</code> files for use on the <a href="https://play.date">PlayDate</a></p>
+        <header class="columns">
+            <div class="column column-25">
+                <h1>pdfontconv</h1>
+            </div>
+            <div class="column column-grow">
+                <p>Converts TTF, OTF and WOFF2 fonts into <code>.fnt</code> files for use on the <a href="https://play.date">PlayDate</a></p>
+            </div>
         </header>
         <main class="columns">
-            <div class="column">
-                <form>
-                    <h2>Font settings</h2>
-                    <label>
-                        Font family:<br>
-                        <input id="fontFamilyInput" type="text" value="sans-serif" class="full-width">
-                    </label>
-                    <label>
-                        Font size:<br>
-                        <input id="fontSizeInput" type="number" min="5" value="24" class="full-width">
-                    </label>
-                    <label>
-                        Character set:<br>
-                        <textarea id="charSetTextarea" class="full-width"></textarea>
-                    </label>
-                    <label>
-                        Opacity threshold:<br>
-                        <input id="opacityThresholdInput" type="number" min="1" max="255" value="128" class="full-width">
-                    </label>
-                </form>
+            <div class="column column-25">
+                <h2>Font settings</h2>
+                <label>
+                    Font file (TTF, OTF, WOFF, WOFF2):<br>
+                    <input id="fontFileInput" type="file" class="full-width">
+                </label>
+                <label>
+                    Font size:<br>
+                    <input id="fontSizeInput" type="number" min="5" value="24" class="full-width">
+                </label>
+                <label>
+                    Opacity threshold:<br>
+                    <input id="opacityThresholdInput" type="number" min="1" max="255" value="128" class="full-width">
+                </label>
+                <label>
+                    Character set:<br>
+                    <textarea id="charSetTextarea" rows="5" class="full-width"></textarea>
+                </label>
             </div>
-            <div class="column">
+            <div class="column column-grow">
                 <h2>Output PNG</h2>
+                <label>
+                    Show at scale:
+                    <input id="displayScaleInput" type="number" min="1" max="4" value="1">
+                </label>
+                <div class="scroll-x scroll-y">
+                    <canvas id="fontCanvas" class="checkerboard-background"></canvas>
+                </div>
                 <p>Checkerboard background is for reference only; actual output is transparent.</p>
-                <form>
-                    <label>
-                        Show at scale:
-                        <input id="displayScaleInput" type="number" min="1" max="4" value="1">
-                    </label>
-                </form>
-                <canvas id="fontCanvas" class="checkerboard-background"></canvas>
-                <form>
-                    <h2>Sample text</h2>
-                    <label>
-                        <input id="sampleTextInput" type="text", value="The quick brown fox jumps over the lazy dog." class="full-width">
-                    </label>
+            </div>
+            <div class="column column-25">
+                <h2>Sample text</h2>
+                <label>
+                    <input id="sampleTextInput" type="text", value="The quick brown fox jumps over the lazy dog." class="full-width">
+                </label>
+                <div class="scroll-x scroll-y">
                     <p>
                         Rendering by browser:<br>
-                        <span id="sampleTextElement" class="grey-background"></span>
+                        <span id="sampleTextElement" class="grey-background no-wrap"></span>
                     </p>
                     <p>
                         Rendering on PlayDate:<br>
                         <canvas id="sampleTextCanvas" class="grey-background"></canvas>
                     </p>
-                </form>
+                </div>
             </div>
         </main>
         <footer>
             Made by <a href="https://frozenfractal.com/">Frozen Fractal</a>. Source code on <a href="https://github.com/ttencate/pdfontconv">GitHub</a>.
         </footer>
-        <script async src="main.js"></script>
+        <script src="main.js"></script>
     </body>
 </html>
