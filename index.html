@@ -23,6 +23,10 @@
                     <input id="fontFileInput" type="file" class="full-width">
                 </label>
                 <label>
+                    Base name for output files:<br>
+                    <input id="baseNameInput" type="text" class="full-width">
+                </label>
+                <label>
                     Font size:<br>
                     <input id="fontSizeInput" type="number" min="5" value="24" class="full-width">
                 </label>
@@ -45,7 +49,7 @@
                     <canvas id="debugCanvas" class="position-absolute"></canvas>
                     <canvas id="fontCanvas" class="position-relative"></canvas>
                 </div>
-                <p>Checkerboard background is for reference only; actual output is transparent.</p>
+                <p class="small">Background is informational only; actual output is transparent. Red: glyph bounding box from input font. Blue: negative tracking (overlap with previous character). Blue + green: extent of character drawn.</p>
             </div>
             <div class="column column-25">
                 <h2>Sample text</h2>
@@ -55,13 +59,19 @@
                 <div class="scroll-x scroll-y">
                     <p>
                         Rendering by browser:<br>
-                        <span id="sampleTextElement" class="grey-background no-wrap"></span>
+                        <span id="sampleTextElement" class="grey-background no-wrap position-relative"></span>
                     </p>
                     <p>
                         Rendering on PlayDate:<br>
                         <canvas id="sampleTextCanvas" class="grey-background"></canvas>
                     </p>
+                    <p class="small">Due to the way we overlap characters using negative tracking, there may be some blank space at the beginning and/or end of the text rendered on the PlayDate.</p>
                 </div>
+                <h2>Save</h2>
+                <p>
+                    <button id="downloadFntButton">Download <code>.fnt</code></button>
+                    <button id="downloadPngButton">Download <code>.png</code></button>
+                </p>
             </div>
         </main>
         <footer>

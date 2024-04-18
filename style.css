@@ -100,3 +100,7 @@ canvas {
 .position-relative {
     position: relative;
 }
+
+.small {
+    font-size: 75%;
+}

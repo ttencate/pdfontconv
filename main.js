@@ -1,5 +1,6 @@
 const fontStyle = document.getElementById('fontStyle');
 const fontFileInput = document.getElementById('fontFileInput');
+const baseNameInput = document.getElementById('baseNameInput');
 const fontSizeInput = document.getElementById('fontSizeInput');
 const charSetTextarea = document.getElementById('charSetTextarea');
 const opacityThresholdInput = document.getElementById('opacityThresholdInput');
@@ -11,7 +12,8 @@ const sampleTextElement = document.getElementById('sampleTextElement');
 const sampleTextCanvas = document.getElementById('sampleTextCanvas');
 
 const input = {
-    fontFile: null,
+    fontDataBytes: null,
+    baseName: '',
     fontSize: 24,
     opacityThreshold: 128,
     charSet: ' !"#$%&\'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}~'.split(''),
@@ -20,6 +22,7 @@ const input = {
 const fontData = {
     charSet: [],
     widths: [],
+    offsetX: 0,
     tracking: 0,
     cellSizeX: 0,
     cellSizeY: 0,
@@ -30,11 +33,12 @@ const FONT_FAMILY = 'pdfontconv';
 
 // Returns the `font-family` for rendering, or a fallback.
 function getFontFamily() {
-    return input.fontFile ? FONT_FAMILY : 'serif';
+    return input.fontDataBytes ? FONT_FAMILY : 'serif';
 }
 
 // Updates the `input` global from input elements.
 function updateInputFromFields() {
+    input.baseName = baseNameInput.value;
     input.fontSize = fontSizeInput.value;
     input.opacityThreshold = opacityThresholdInput.value;
 
@@ -54,29 +58,32 @@ function updateInputFromFields() {
     saveInput();
 }
 
-// Encodes an ArrayBuffer as a base64 string.
-function encodeBase64(arrayBuffer) {
-    const bytesAsString = new Uint8Array(arrayBuffer).map(byte => String.fromCharCode(byte)).join('');
+// Encodes an `Uint8Array` as a base64 string.
+function encodeBase64(array) {
+    const bytesAsChars = [];
+    for (let i = 0; i < array.length; i++) {
+        bytesAsChars.push(String.fromCharCode(array[i]));
+    }
+    const bytesAsString = bytesAsChars.join('');
     return btoa(bytesAsString);
 }
 
-// Decodes a base64 string into an ArrayBuffer.
+// Decodes a base64 string into an `Uint8Array`.
 function decodeBase64(string) {
     const bytesAsString = atob(string);
     const length = bytesAsString.length;
-    const buffer = new ArrayBuffer(length);
-    const array = new Uint8Array(buffer);
+    const array = new Uint8Array(length);
     for (let i = 0; i < length; i++) {
         array[i] = bytesAsString.charCodeAt(i);
     }
-    return buffer;
+    return array;
 }
 
 // Saves the `input` global into local storage.
 function saveInput() {
     localStorage.setItem('pdfontconvInput', JSON.stringify({
         ...input,
-        fontFile: input.fontFile ? encodeBase64(input.fontFile) : null,
+        fontDataBytes: input.fontDataBytes ? encodeBase64(input.fontDataBytes) : null,
     }));
 }
 
@@ -85,8 +92,8 @@ function loadInput() {
     let loaded;
     try {
         loaded = JSON.parse(localStorage.getItem('pdfontconvInput'));
-        if (loaded.fontFile) {
-            loaded.fontFile = decodeBase64(loaded.fontFile);
+        if (loaded.fontDataBytes) {
+            loaded.fontDataBytes = decodeBase64(loaded.fontDataBytes);
         }
     } catch (ex) {
         return false;
@@ -100,6 +107,7 @@ function loadInput() {
 
 // Updates input fields from the `input` global.
 function updateFieldsFromInput() {
+    baseNameInput.value = input.baseName;
     fontSizeInput.value = input.fontSize;
     opacityThresholdInput.value = input.opacityThreshold;
     charSetTextarea.value = input.charSet.join('');
@@ -120,27 +128,55 @@ function getDisplayScale() {
     return displayScaleInput.value / window.devicePixelRatio;
 }
 
+// Removes any leading path from a file name.
+// https://html.spec.whatwg.org/multipage/input.html#fakepath-srsly
+function extractFilename(path) {
+    const slashIndex = path.lastIndexOf('/');
+    if (slashIndex >= 0) {
+        path = path.substr(slashIndex + 1);
+    }
+    const backslashIndex = path.lastIndexOf('\\');
+    if (backslashIndex >= 0) {
+        path = path.substr(backslashIndex + 1);
+    }
+    return path;
+}
+
+// Removes everything from the last '.' onwards.
+function stripExtension(fileName) {
+    const dotIndex = fileName.lastIndexOf('.');
+    if (dotIndex >= 0) {
+        return fileName.substr(0, dotIndex);
+    } else {
+        return fileName;
+    }
+}
+
 // Loads the font file and sets up a CSS rule for it.
 async function loadFont() {
     const blob = fontFileInput.files[0];
     if (!blob) {
         return;
     }
-    input.fontFile = await blob.arrayBuffer();
-    await createFontFace();
+    const arrayBuffer = await blob.arrayBuffer();
+
+    await createFontFace(arrayBuffer);
+    input.fontDataBytes = new Uint8Array(arrayBuffer);
 }
 
-// Loads the `FontFace` from the `input` global and tells the browser about it.
-async function createFontFace() {
-    if (!input.fontFile) {
-        return;
-    }
+// Resets the base name input to the name of the current font file.
+function extractFontBaseName() {
+    input.baseName = stripExtension(extractFilename(fontFileInput.value));
+    baseNameInput.value = baseName;
+}
 
+// Loads the `FontFace` from the array buffer and tells the browser about it.
+async function createFontFace(arrayBuffer) {
     const descriptors = {
         // style: 'italic',
         // weight: '400',
     };
-    const fontFace = new FontFace(FONT_FAMILY, input.fontFile, descriptors);
+    const fontFace = new FontFace(FONT_FAMILY, arrayBuffer, descriptors);
     try {
         await fontFace.load();
     } catch (ex) {
@@ -149,6 +185,17 @@ async function createFontFace() {
 
     document.fonts.clear(); // Only clears fonts that were added through JavaScript.
     document.fonts.add(fontFace);
+}
+
+// Queries character set for the index of the given character.
+// Returns -1 if not found.
+function getCharIndex(char) {
+    for (let i = 0; i < fontData.charSet.length; i++) {
+        if (fontData.charSet[i] == char) {
+            return i;
+        }
+    }
+    return -1;
 }
 
 // Renders the font image to the canvas and writes font data to the `fontData` global.
@@ -218,27 +265,35 @@ function convertFont() {
     debugContext.clearRect(0, 0, canvasWidth, canvasHeight);
 
     // Draw all characters.
-    for (let i = 0; i < numChars; i++) {
-        const col = i % numCellsX;
-        const row = Math.floor(i / numCellsX);
-        const cellX = col * cellSizeX;
-        const cellY = row * cellSizeY;
-        const measure = measures[i];
-        context.fillText(charSet[i], cellX + offsetX, cellY + offsetY);
-        debugContext.fillStyle = (row + col) % 2 == 0 ? '#ddd' : '#eee';
-        debugContext.fillRect(cellX, cellY, cellSizeX, cellSizeY);
-        debugContext.fillStyle = `rgba(0, 0, 255, 0.1)`;
-        debugContext.fillRect(
-            cellX, cellY,
-            widths[i], cellSizeY,
-        );
-        debugContext.fillStyle = `rgba(255, 0, 0, 0.1)`;
-        debugContext.fillRect(
-            cellX + offsetX - measure.left,
-            cellY + offsetY - measure.ascent,
-            measure.left + measure.right,
-            measure.ascent + measure.descent,
-        );
+    for (let row = 0; row < numCellsY; row++) {
+        for (let col = 0; col < numCellsX; col++) {
+            const cellX = col * cellSizeX;
+            const cellY = row * cellSizeY;
+            debugContext.fillStyle = (row + col) % 2 == 0 ? '#ddd' : '#eee';
+            debugContext.fillRect(cellX, cellY, cellSizeX, cellSizeY);
+            const i = row * numCellsX + col;
+            if (i < numChars) {
+                const measure = measures[i];
+                context.fillText(charSet[i], cellX + offsetX, cellY + offsetY);
+                debugContext.fillStyle = `rgba(0, 0, 255, 0.08)`;
+                debugContext.fillRect(
+                    cellX, cellY,
+                    -tracking, cellSizeY,
+                );
+                debugContext.fillStyle = `rgba(0, 255, 0, 0.1)`;
+                debugContext.fillRect(
+                    cellX - tracking, cellY,
+                    widths[i] + tracking, cellSizeY,
+                );
+                debugContext.fillStyle = `rgba(255, 0, 0, 0.2)`;
+                debugContext.fillRect(
+                    cellX + offsetX - measure.left,
+                    cellY + offsetY - measure.ascent,
+                    measure.left + measure.right,
+                    measure.ascent + measure.descent,
+                );
+            }
+        }
     }
 
     // Convert partial alpha to either opaque or transparent.
@@ -263,20 +318,50 @@ function convertFont() {
     // Update fontData.
     fontData.charSet = charSet;
     fontData.widths = widths;
+    fontData.offsetX = offsetX;
     fontData.tracking = tracking;
     fontData.cellSizeX = cellSizeX;
     fontData.cellSizeY = cellSizeY;
 }
 
-function getCharIndex(char) {
-    for (let i = 0; i < fontData.charSet.length; i++) {
-        if (fontData.charSet[i] == char) {
-            return i;
-        }
-    }
-    return -1;
+// Returns the font's PNG data as an Uint8Array.
+function generatePng() {
+    const dataBase64 = fontCanvas.toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+    return decodeBase64(dataBase64);
 }
 
+// Returns the `.fnt` file contents as an Uint8Array. Description of the file format:
+// https://github.com/cranksters/playdate-reverse-engineering/blob/main/formats/fnt.md
+function generateFnt() {
+    const lines = [];
+    lines.push('-- Generated using pdfontconf: https://pdfontconf.frozenfractal.com');
+    lines.push(`tracking=${fontData.tracking}`);
+    for (let i = 0; i < fontData.charSet.length; i++) {
+        let char = fontData.charSet[i];
+        if (char == ' ') {
+            char = 'space';
+        }
+        const width = fontData.widths[i];
+        lines.push(`${char} ${width}`);
+    }
+    return new TextEncoder().encode(lines.join('\n'));
+}
+
+// Triggers a download of the given data with the given file name and MIME type.
+function downloadFile(fileName, mimeType, data) {
+    const a = document.createElement('a');
+    console.log(data);
+    a.href = `data:${mimeType};base64,${encodeBase64(data)}`;
+    console.log(a.href);
+    a.download = fileName;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+// Renders the sample text both to the browser element and to the canvas
+// The latter mimics the PlayDate's very simple layout algorithm.
 function renderSampleText() {
     const sampleText = sampleTextInput.value;
     const displayScale = getDisplayScale();
@@ -285,6 +370,7 @@ function renderSampleText() {
     sampleTextElement.innerText = sampleText;
     sampleTextElement.style.fontFamily = getFontFamily();
     sampleTextElement.style.fontSize = `${input.fontSize * displayScale}px`;
+    sampleTextElement.style.left = `${fontData.offsetX * displayScale}px`;
 
     // Set canvas size.
     let canvasWidth = -fontData.tracking;
@@ -331,6 +417,14 @@ function renderSampleText() {
     sampleTextCanvas.style.height = `${Math.floor(canvasHeight * displayScale)}px`;
 }
 
+function downloadFnt() {
+    downloadFile(`${input.baseName}.fnt`, 'text/plain;charset=UTF-8', generateFnt());
+}
+
+function downloadPng() {
+    downloadFile(`${input.baseName}-table-${fontData.cellSizeX}-${fontData.cellSizeY}.png`, 'image/png', generatePng());
+}
+
 async function init() {
     if (!loadInput()) {
         saveInput();
@@ -339,36 +433,50 @@ async function init() {
     }
     updateFieldsFromInput();
     updateOutput();
+
+    fontFileInput.addEventListener('change', async function() {
+        await loadFont();
+        extractFontBaseName();
+        convertFont();
+        renderSampleText();
+        saveInput();
+    });
+
+    baseNameInput.addEventListener('change', function() {
+        updateInputFromFields();
+    });
+
+    for (const element of [
+        fontSizeInput,
+        charSetTextarea,
+        displayScaleInput,
+        opacityThresholdInput,
+    ]) {
+        element.addEventListener('change', function() {
+            updateInputFromFields();
+            convertFont();
+            renderSampleText();
+            saveInput();
+        });
+    }
+
+    sampleTextInput.addEventListener('change', function() {
+        renderSampleText();
+    });
+
+    downloadFntButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        downloadFnt();
+    });
+    downloadPngButton.addEventListener('click', function(e) {
+        e.preventDefault();
+        downloadPng();
+    });
 }
 
 function updateOutput() {
     convertFont();
     renderSampleText();
 }
-
-fontFileInput.addEventListener('change', async function() {
-    await loadFont();
-    convertFont();
-    renderSampleText();
-    saveInput();
-});
-
-for (const element of [
-    fontSizeInput,
-    charSetTextarea,
-    displayScaleInput,
-    opacityThresholdInput,
-]) {
-    element.addEventListener('change', function() {
-        updateInputFromFields();
-        convertFont();
-        renderSampleText();
-        saveInput();
-    });
-}
-
-sampleTextInput.addEventListener('change', function() {
-    renderSampleText();
-});
 
 init();
